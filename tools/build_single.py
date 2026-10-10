@@ -10,6 +10,8 @@ Usage:
       and in dist/index.html) so a shared link gets a picture preview.
 """
 import base64
+import hashlib
+import json
 import os
 import re
 import sys
@@ -51,10 +53,39 @@ if site_url:
     with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
-# 1. stylesheet
+# 1. stylesheet, with the fonts embedded when tools/fetch_vendor.py has run (true offline file)
 css = read(os.path.join(DIST, "css", "game.css"))
+VENDOR = os.path.join(ROOT, "assets", "vendor")
+fonts_json = os.path.join(VENDOR, "fonts.json")
+font_css = ""
+if os.path.exists(fonts_json):
+    with open(fonts_json, encoding="utf-8") as f:
+        entries = json.load(f)
+    # Google serves one variable file for several weights; merge identical files into a weight range
+    groups = {}
+    for m in entries:
+        with open(os.path.join(VENDOR, "fonts", m["file"]), "rb") as fb:
+            key = (m["family"], m["range"], hashlib.sha256(fb.read()).hexdigest())
+        groups.setdefault(key, {"m": m, "weights": []})["weights"].append(m["weight"])
+    for key, g in groups.items():
+        m, ws = g["m"], sorted(g["weights"])
+        weight = "%d %d" % (ws[0], ws[-1]) if ws[0] != ws[-1] else "%d" % ws[0]
+        uri = data_uri(os.path.join(VENDOR, "fonts", m["file"]), "font/woff2")
+        font_css += ("@font-face{font-family:'%s';font-style:normal;font-weight:%s;font-display:swap;src:url(%s) format('woff2');unicode-range:%s}\n"
+                     % (m["family"], weight, uri, m["range"]))
+    # drop the Google Fonts link and its preconnects: everything is inline now
+    html = re.sub(r'<link rel="preconnect" href="https://fonts\.[^"]+"[^>]*>\n', "", html)
+    html = re.sub(r'<link rel="stylesheet" href="https://fonts\.googleapis\.com[^>]*>\n', "", html)
 i, j = between(html, "css")
-html = html[:i] + "<style>\n" + css + "\n</style>" + html[j:]
+html = html[:i] + "<style>\n" + font_css + css + "\n</style>" + html[j:]
+
+# 1b. three.js inline when downloaded, so the file needs no network at all
+three_path = os.path.join(VENDOR, "three.min.js")
+if os.path.exists(three_path):
+    three = read(three_path).replace("</script", "<\\/script")
+    html = re.sub(r'<link rel="preload" as="script" href="https://cdnjs[^>]*>\n', "", html)
+    html = re.sub(r'<script src="https://cdnjs\.cloudflare\.com/ajax/libs/three\.js/r128/three\.min\.js"[^>]*></script>',
+                  lambda _m: "<script>\n" + three + "\n</script>", html)
 
 # 2. PWA links become a data-URI favicon only (manifest and service worker need a host)
 i, j = between(html, "pwa")
