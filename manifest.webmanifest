@@ -1,0 +1,20 @@
+{
+  "name": "MOHAMED ISMAIL GAMS",
+  "short_name": "MI GAMS",
+  "description": "لعبة جري ثلاثية الأبعاد: تفادى الحواجز، اجمع القلوب، واهزم الوحش",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html?source=pwa",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
