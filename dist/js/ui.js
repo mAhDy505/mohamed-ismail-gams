@@ -37,7 +37,9 @@ function startMusic() {
 function music(on) { musicOn = on; if (on) startMusic(); else if (musicSrc) { try { musicSrc.stop(); } catch (e) { } musicSrc = null; } }
 function duck(level) { if (musicGain && ac) { musicGain.gain.cancelScheduledValues(ac.currentTime); musicGain.gain.linearRampToValueAtTime(level, ac.currentTime + .4); } }
 function setMute(m) { P.mute = m; saveP(); if (masterGain) masterGain.gain.value = m ? 0 : 1; var ic = m ? ICON_MUTE : ICON_SOUND; $('bSound').innerHTML = ic; $('bSound2').innerHTML = ic + '<span>' + (m ? 'شغّل الصوت' : 'اقفل الصوت') + '</span>'; }
-function buzz(p) { if (P.mute || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) { } }
+var tapped = false; /* browsers refuse vibration before the first tap; skip it quietly until then */
+window.addEventListener('pointerdown', function () { tapped = true; }, { capture: true, passive: true });
+function buzz(p) { if (P.mute || !tapped || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) { } }
 
 /* ---------- HUD ---------- */
 var ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14.5" y="4" width="4.5" height="16" rx="1.2"/></svg>';
@@ -87,12 +89,14 @@ function setState(s) {
   $('bFire').hidden = !(level >= 3 && s !== 'menu');
   if (s !== 'playing') releaseAllHolds();
   if (s === 'playing') duck(.5); else if (s === 'level') duck(.35); else duck(.18);
-  if (s === 'menu') { renderMenu(); music(false); }
+  if (!(s === 'playing' || s === 'paused')) $('tut').hidden = true;
+  if (s === 'menu') { clearAll(); clearCombat(); unlockScreen(); renderMenu(); music(false); }
+  if (s === 'win') unlockScreen();
   var cta = { menu: 'startBtn', level: 'nextBtn', over: 'againBtn', win: 'endlessBtn', revive: 'reviveBtn' }[s];
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if (cta && !coarse) setTimeout(function () { try { $(cta).focus({ preventScroll: true }); } catch (e) { } }, 50);
 }
-function showLevel(done, next, pts, hint) { $('lvDone').textContent = done; $('lvNext').textContent = next; $('lvCount').textContent = 3; $('lvBonus').textContent = '+' + pts + ' مكافأة'; $('lvHint').textContent = hint || ''; }
+function showLevel(done, next, pts, hint) { $('lvDone').textContent = done; $('lvNext').textContent = next; $('lvCount').textContent = 3; $('lvBonus').textContent = plus(pts) + ' مكافأة'; $('lvHint').textContent = hint || ''; }
 var QUIPS = { spikes: 'الشوك مبيرحمش', crate: 'الصندوق كان أقرب مما تتخيل', saw: 'المنشار مبيهزرش', pylon: 'العمود واقف في وشك', gimbal: 'الكرة لفت عليك', fire: 'كرة النار جت في وشك', charge: 'الوحش داس عليك' };
 function showGameOver(r) {
   $('finalScore').textContent = fmt(r.score); $('rankTxt').textContent = 'لقبك: ' + rankFor(r.level);
@@ -115,7 +119,8 @@ function renderMenu() {
   $('chalTxt').hidden = !(chal > 0); if (chal > 0) $('chalTxt').textContent = 'صاحبك جاب ' + fmt(chal) + ' نقطة. تقدر تعدّيه؟';
   $('bCampaign').classList.toggle('on', menuMode === 'normal'); $('bDaily').classList.toggle('on', menuMode === 'daily');
   var d = todayKey(), dailyBest = P.bestDaily.d === d ? P.bestDaily.s : 0;
-  $('streakTxt').textContent = menuMode === 'daily' ? ('كل الناس بتجري على نفس الطريق النهارده' + (dailyBest ? ' | أحسن نتيجة: ' + fmt(dailyBest) : '') + (P.streak > 1 ? ' | ' + P.streak + ' أيام ورا بعض' : '')) : '';
+  var streakLive = P.streak > 1 && P.lastDaily && daysBetween(P.lastDaily, d) <= 1;
+  $('streakTxt').textContent = menuMode === 'daily' ? ('كل الناس بتجري على نفس الطريق النهارده' + (dailyBest ? ' | أحسن نتيجة: ' + fmt(dailyBest) : '') + (streakLive ? ' | ' + P.streak + ' أيام ورا بعض' : '')) : '';
   $('cpRow').hidden = !(menuMode === 'normal' && P.maxLevel >= 5);
   $('cp4').classList.toggle('on', startAt === 4); $('cp7').classList.toggle('on', startAt === 7); $('cp1').classList.toggle('on', startAt === 1); $('cp7').hidden = P.maxLevel < 8;
   var sk = $('skins'); sk.innerHTML = '';
@@ -133,7 +138,7 @@ function renderMenu() {
 
 /* ---------- share: text + card image through the system share sheet, WhatsApp fallback ---------- */
 function shareUrl() { var u = location.href.split('#')[0]; return (u.indexOf('http') === 0 ? u : (window.SHARE_URL || u)); }
-function shareText(sc) { return 'جبت ' + fmt(sc) + ' نقطة ووصلت المستوى ' + (endless ? 'بلا نهاية' : level) + ' في MOHAMED ISMAIL GAMS ولقبي ' + rankFor(level) + '. اتحداك تعدّيني'; }
+function shareText(sc) { return 'جبت ' + fmt(sc) + ' نقطة ووصلت المستوى ' + (endless ? 'بلا نهاية' : level) + ' في MOHAMED ISMAIL GAMS. اتحداك تعدّيني'; }
 function makeCard(sc, cb) {
   var c = document.createElement('canvas'); c.width = 1080; c.height = 1350; var x = c.getContext('2d');
   function draw(img) {
@@ -144,7 +149,7 @@ function makeCard(sc, cb) {
     x.fillStyle = '#fff'; x.font = '900 230px Orbitron, Segoe UI, sans-serif'; x.shadowColor = 'rgba(0,0,0,.8)'; x.shadowBlur = 24; x.fillText(fmt(sc), 540, 980); x.shadowBlur = 0;
     x.fillStyle = '#b9c4d6'; x.font = '700 48px Cairo, Segoe UI, sans-serif'; x.direction = 'rtl'; x.fillText('المستوى ' + (endless ? 'بلا نهاية' : level) + ' | ' + rankFor(level), 540, 1060);
     x.fillStyle = '#e6b85c'; x.font = '900 54px Cairo, Segoe UI, sans-serif'; x.fillText('تقدر تعدّيني؟', 540, 1150);
-    x.fillStyle = '#7e8ca3'; x.font = '700 34px Segoe UI, sans-serif'; x.direction = 'ltr'; x.fillText(shareUrl().replace(/^https?:\/\//, ''), 540, 1270);
+    x.fillStyle = '#9fb0c8'; x.font = '700 32px Segoe UI, sans-serif'; x.direction = 'ltr'; x.fillText(shareUrl().replace(/^https?:\/\//, '') + '#c=' + sc, 540, 1270);
     c.toBlob(function (b) { cb(b); }, 'image/jpeg', .9);
   }
   if (shotURL) { var im = new Image(); im.onload = function () { draw(im); }; im.onerror = function () { draw(null); }; im.src = shotURL; } else draw(null);
@@ -152,16 +157,21 @@ function makeCard(sc, cb) {
 function shareScore() {
   var sc = hc.score || score(), url = shareUrl() + '#c=' + sc, txt = shareText(sc);
   function fallback() { window.open('https://wa.me/?text=' + encodeURIComponent(txt + '\n' + url), '_blank'); }
+  function notCancel(err) { return !(err && err.name === 'AbortError'); }
+  function textOnly() { return navigator.share({ title: 'MOHAMED ISMAIL GAMS', text: txt, url: url }).catch(function (err) { if (notCancel(err)) fallback(); }); }
   if (!navigator.share) { fallback(); return; }
+  /* the text and link also go to the clipboard: some share targets keep only the picture */
+  try { if (navigator.clipboard) navigator.clipboard.writeText(txt + '\n' + url).catch(function () { }); } catch (e) { }
   makeCard(sc, function (blob) {
     var files = blob ? [new File([blob], 'mi-gams-score.jpg', { type: 'image/jpeg' })] : null;
-    if (files && navigator.canShare && navigator.canShare({ files: files })) navigator.share({ title: 'MOHAMED ISMAIL GAMS', text: txt, url: url, files: files }).catch(function () { });
-    else navigator.share({ title: 'MOHAMED ISMAIL GAMS', text: txt, url: url }).catch(fallback);
+    if (files && navigator.canShare && navigator.canShare({ files: files })) navigator.share({ title: 'MOHAMED ISMAIL GAMS', text: txt, url: url, files: files }).catch(function (err) { if (notCancel(err)) textOnly(); });
+    else textOnly();
   });
 }
 
 /* ---------- wiring ---------- */
-$('startBtn').addEventListener('click', function () { startGame({ daily: menuMode === 'daily', startLevel: menuMode === 'daily' ? 1 : startAt }); });
+function startFromMenu() { startGame({ daily: menuMode === 'daily', startLevel: menuMode === 'daily' ? 1 : startAt }); }
+$('startBtn').addEventListener('click', startFromMenu);
 $('bCampaign').addEventListener('click', function () { menuMode = 'normal'; renderMenu(); });
 $('bDaily').addEventListener('click', function () { menuMode = 'daily'; renderMenu(); });
 [['cp1', 1], ['cp4', 4], ['cp7', 7]].forEach(function (p) { $(p[0]).addEventListener('click', function () { startAt = p[1]; renderMenu(); }); });
@@ -176,12 +186,13 @@ $('reviveNo').addEventListener('click', function () { if (state === 'revive') ga
 $('shareBtn').addEventListener('click', shareScore); $('shareBtn2').addEventListener('click', shareScore);
 $('bPause').addEventListener('click', togglePause);
 $('bResume').addEventListener('click', togglePause);
-$('bRestart').addEventListener('click', function () { state = 'menu'; startGame({ daily: mode === 'daily', startLevel: mode === 'daily' ? 1 : startAt }); });
-$('bHome').addEventListener('click', function () { music(false); setState('menu'); });
+$('bRestart').addEventListener('click', function () { creditDist(); state = 'menu'; startGame({ daily: mode === 'daily', startLevel: mode === 'daily' ? 1 : startAt }); });
+$('bHome').addEventListener('click', function () { creditDist(); music(false); setState('menu'); });
 $('bSound').addEventListener('click', function () { unlockAudio(); setMute(!P.mute); });
 $('bSound2').addEventListener('click', function () { unlockAudio(); setMute(!P.mute); });
 $('bLefty').addEventListener('click', function () { P.lefty = !P.lefty; saveP(); document.body.classList.toggle('lefty', P.lefty); });
-window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+/* iOS counts touchend and click as user activation, not pointerdown, so every gesture end unlocks too */
+['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'].forEach(function (n) { window.addEventListener(n, unlockAudio, { capture: true, passive: true }); });
 
 /* ---------- PWA ---------- */
 var deferredInstall = null;

@@ -21,7 +21,7 @@ function update(dt, raw) {
     visSpeed += (speed - visSpeed) * (1 - Math.exp(-dt * 3));
     dz = speed * dt; dist += dz; stepWorld(dz);
     /* held direction repeats every 150 ms */
-    if (hold.dir) { hold.t -= dt; if (hold.t <= 0) { move(hold.dir); hold.t = .15; } }
+    if (hold.dir) { hold.t -= dt; if (hold.t <= 0) { move(hold.dir); hold.t = .11; } }
     if (hold.fire) fire(true);
     px += (laneX(targetLane) - px) * Math.min(1, dt * 15);
     if (invuln > 0) invuln -= dt;
@@ -39,11 +39,11 @@ function update(dt, raw) {
       if (it.z > 10) { removeItem(it); continue; }
       if (it.kind === 'obs') {
         if (invuln <= 0 && z0 < .95 && it.z > -.95 && Math.abs(px - it.x) < .72) { hit(it); if (state !== 'playing') break; continue; }
-        if (it.clutch && !it.hit && it.z >= .95 && z0 < .95) { it.clutch = false; clutch(); }
+        if (it.clutch && !it.hit && it.z >= .95 && z0 < .95) { it.clutch = false; if (Math.abs(px - it.x) >= .72) clutch(); }
       } else if (z0 < 1.1 && it.z > -1.1 && Math.abs(px - it.x) < .95) pickHeart(it);
     }
-    if (state === 'playing') {
-      updateCombat(dt);
+    if (state === 'playing') updateCombat(dt);
+    if (state === 'playing') { /* re-checked: combat may have killed the player this frame */
       animRunner(dt, speed, lean, clock);
       player.bubble.visible = invuln > 0;
       if (invuln > 0) { var bf = Math.min(1, invuln / .3); player.bubble.material.opacity = (.1 + .1 * Math.abs(Math.sin(clock * 31))) * bf; player.bubble.scale.setScalar(.8 + .5 * bf); player.bubbleRing.rotation.z += dt * 3; }
@@ -64,7 +64,7 @@ function update(dt, raw) {
   for (i = fxQueue.length - 1; i >= 0; i--) { fxQueue[i].t -= raw; if (fxQueue[i].t <= 0) { var f = fxQueue[i]; burst(f.x, f.y, f.z, f.c, 50, 6, 3, 5); burst(f.x, f.y, f.z, 0xffffff, 12, 3, 2, 4); fxQueue.splice(i, 1); } }
   /* player placement and lights */
   root.position.x = px; if (state !== 'dying' && state !== 'revive') root.position.y = 0;
-  player.shadow.visible = state !== 'dying' && state !== 'revive';
+  player.shadow.visible = state !== 'dying' && state !== 'revive'; player.shadow.position.set(px, .02, 0);
   glow.position.set(px, 2.2, 1.4);
   sun.position.set(px + 7, 22, 8); sun.target.position.set(px, 0, -12); sun.target.updateMatrixWorld();
   updateParts(raw, dz); updateFx(raw, dz);
@@ -89,7 +89,9 @@ var last = 0, hudT = 0, slowFrames = 0, startedAt = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   if (!last) { last = now; return; }
-  var rawMs = now - last; last = now; if (rawMs > 100) rawMs = 16; var raw = clamp(rawMs / 1000, 0, .05), dt;
+  var rawMs = now - last; last = now; var measMs = Math.min(rawMs, 100); if (rawMs > 100) rawMs = 16; var raw = clamp(rawMs / 1000, 0, .05), dt;
+  if (measMs >= 3 && measMs < Q.base) Q.base = measMs; /* fastest interval seen = the display's own cadence */
+  if (Q.pending) { Q.pending = false; applyTier(); }
   if (hitStop > 0) { hitStop -= raw; dt = 0; } else { timeScale += (tsTarget - timeScale) * Math.min(1, raw * 10); dt = raw * timeScale; }
   if (slowT > 0 && (slowT -= raw) <= 0) tsTarget = 1;
   if (state === 'paused') { dt = 0; }
@@ -103,9 +105,10 @@ function frame(now) {
   if (grabNext > 0) { grabNext--; if (grabNext === 0) { try { shotURL = canvas.toDataURL('image/jpeg', .86); } catch (e) { shotURL = null; } } }
   /* quality governor: drop a tier when frames stay slow while playing */
   if (state === 'playing') {
-    Q.ema += (rawMs - Q.ema) * .06;
+    Q.ema += (measMs - Q.ema) * .06;
     if (Q.cool > 0) Q.cool--;
-    else if (Q.ema > 21) { if (++Q.over > 45 && Q.tier < 3) { Q.tier++; applyTier(); Q.over = 0; Q.cool = 240; } } else Q.over = 0;
+    /* threshold follows the display cadence, so a 30 Hz power-saving cap is not read as slow rendering */
+    else if (Q.ema > Math.max(21, Q.base * 1.3)) { if (++Q.over > 45 && Q.tier < 3) { Q.tier++; Q.pending = true; Q.over = 0; Q.cool = 240; } } else Q.over = 0;
   }
 }
 
@@ -115,7 +118,7 @@ function bindHold(el, dir) {
   function down(e) {
     e.preventDefault(); if (pid !== null) return; pid = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (x) { }
     el.classList.add('down'); unlockAudio();
-    if (dir) { move(dir); hold.dir = dir; hold.t = .15; } else { fire(true); hold.fire = true; }
+    if (dir) { move(dir); hold.dir = dir; hold.t = .3; } else { fire(true); hold.fire = true; }
   }
   function up(e) { if (e && e.pointerId !== pid) return; pid = null; el.classList.remove('down'); if (dir) { if (hold.dir === dir) hold.dir = 0; } else hold.fire = false; }
   el.addEventListener('pointerdown', down);
@@ -144,9 +147,10 @@ window.addEventListener('keydown', function (e) {
   if (c === 'ArrowLeft' || c === 'KeyA') { if (!e.repeat) { move(-1); hold.dir = -1; hold.t = .22; } e.preventDefault(); }
   else if (c === 'ArrowRight' || c === 'KeyD') { if (!e.repeat) { move(1); hold.dir = 1; hold.t = .22; } e.preventDefault(); }
   else if (c === 'Space' || c === 'KeyF' || c === 'KeyJ') { if (state === 'playing') { fire(true); hold.fire = true; e.preventDefault(); } }
-  else if (c === 'KeyP' || c === 'Escape') { if (state === 'playing' || state === 'paused') { togglePause(); e.preventDefault(); } }
+  else if (c === 'KeyP' || c === 'Escape') { if (!e.repeat && (state === 'playing' || state === 'paused')) { togglePause(); e.preventDefault(); } }
   else if (c === 'Enter' && e.target === document.body) {
-    if (state === 'menu' || state === 'over' || state === 'win') startGame(); else if (state === 'level') nextLevel(); else if (state === 'revive') reviveNow();
+    if (state === 'menu') startFromMenu(); else if (state === 'over') startGame({ daily: mode === 'daily', startLevel: mode === 'daily' ? 1 : startAt }); else if (state === 'win') startGame({});
+    else if (state === 'level') nextLevel(); else if (state === 'revive') reviveNow();
   }
 });
 window.addEventListener('keyup', function (e) {
@@ -155,7 +159,7 @@ window.addEventListener('keyup', function (e) {
   if ((c === 'ArrowRight' || c === 'KeyD') && hold.dir === 1) hold.dir = 0;
   if (c === 'Space' || c === 'KeyF' || c === 'KeyJ') hold.fire = false;
 });
-function autoPause() { if (state === 'playing') setState('paused'); releaseAllHolds(); if (state !== 'menu') { saveP(); } }
+function autoPause() { if (state === 'playing') setState('paused'); releaseAllHolds(); if (state !== 'menu') { creditDist(); saveP(); } }
 document.addEventListener('visibilitychange', function () { if (document.hidden) autoPause(); else { unlockAudio(); if (state === 'playing' || state === 'paused') lockScreen(); } });
 window.addEventListener('blur', autoPause);
 window.addEventListener('pagehide', autoPause);

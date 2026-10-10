@@ -17,8 +17,9 @@ function fmt(n) { return (n | 0).toString().replace(/\B(?=(\d{3})+$)/g, ','); }
 
 /* ---------- seeded random: rnd() drives the track, rndM() the monster, so a daily seed gives everyone the same road ---------- */
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-var rnd = Math.random, rndM = Math.random;
-function seedRun(s) { if (s == null) { rnd = Math.random; rndM = Math.random; } else { rnd = mulberry(s); rndM = mulberry((s ^ 0x9E3779B9) | 0); } }
+var rnd = Math.random, rndM = Math.random, rndH = Math.random;
+/* rndH feeds heart lanes only, so a skill-dependent heart (rescue, boss drop) never shifts the shared daily road */
+function seedRun(s) { if (s == null) { rnd = Math.random; rndM = Math.random; rndH = Math.random; } else { rnd = mulberry(s); rndM = mulberry((s ^ 0x9E3779B9) | 0); rndH = mulberry((s ^ 0x85EBCA6B) | 0); } }
 function randInt(a, b) { return a + Math.floor(rnd() * (b - a + 1)); }
 function hashStr(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 var fixedRnd = mulberry(1337); /* art-directed look: the same reflections and windows for everyone */
@@ -28,7 +29,7 @@ var coarse = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
 var RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches);
 var fxScale = RM ? .25 : 1;
 var TIERS = [{ dpr: 2 }, { dpr: 1.5 }, { dpr: 1.2 }, { dpr: .9 }];
-var Q = { tier: coarse ? 1 : 0, ema: 16, over: 0, cool: 0, failed: 9 };
+var Q = { tier: coarse ? 1 : 0, ema: 16, over: 0, cool: 0, base: 1e9, pending: false };
 
 var app = $('app'), canvas = $('gl');
 var renderer;
@@ -52,7 +53,7 @@ var PAL = [
 ];
 function palFor(L) { return PAL[Math.min(4, Math.floor((clamp(L, 1, 10) - 1) / 2))]; }
 var pal = PAL[0];
-scene.fog = new T.Fog(pal.fog, 60, 175);
+scene.fog = new T.Fog(pal.fog, 55, 150);
 var skyC = document.createElement('canvas'); skyC.width = 16; skyC.height = 256;
 var skyTex = new T.CanvasTexture(skyC); skyTex.encoding = T.sRGBEncoding; skyTex.generateMipmaps = false; skyTex.minFilter = T.LinearFilter;
 function paintSky(p) {
@@ -151,8 +152,8 @@ var glowTex = (function () {
   g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.25, 'rgba(255,255,255,.55)'); g.addColorStop(.6, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(255,255,255,0)');
   x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(c);
 })();
-function glowSprite(hex, size, op) {
-  var s = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: hex, transparent: true, opacity: op == null ? .8 : op, blending: T.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false }));
+function glowSprite(hex, size, op, fogged) {
+  var s = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: hex, transparent: true, opacity: op == null ? .8 : op, blending: T.AdditiveBlending, depthWrite: false, fog: !!fogged, toneMapped: false }));
   s.scale.set(size, size, 1); return s;
 }
 var blobTex = (function () {
@@ -219,8 +220,8 @@ var TOWER_GAP = 16, TOWER_N = 11, SEG = TOWER_GAP * TOWER_N, towerSegs = [];
       for (var i = 0; i < TOWER_N; i++) {
         var w = 2 + fixedRnd() * 3, h = 7 + fixedRnd() * 20, d = 2.5 + fixedRnd() * 3;
         var x0 = s * (TRACK_W / 2 + 5 + fixedRnd() * 7 + w / 2), z0 = -i * TOWER_GAP - fixedRnd() * 6;
-        var bg = new T.BoxGeometry(w, h, d), uv = bg.attributes.uv; /* scale uv so windows stay the same size on every tower */
-        for (var k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * w / 3, uv.getY(k) * h / 6);
+        var bg = new T.BoxGeometry(w, h, d), uv = bg.attributes.uv, nr = bg.attributes.normal; /* scale uv per face so windows stay the same size on every tower */
+        for (var k = 0; k < uv.count; k++) { var ax = Math.abs(nr.getX(k)) > .5, ay = Math.abs(nr.getY(k)) > .5; uv.setXY(k, uv.getX(k) * (ax ? d : w) / 3, uv.getY(k) * (ay ? d : h) / 6); }
         body.add(bg, bodyMat, [1, 1, 1], [x0, h / 2, z0]);
         lit.add(geo.box, strips[Math.floor(fixedRnd() * 4)], [.08, h * .88, d * .3], [x0 - s * (w / 2 + .02), h / 2, z0]);
         lit.add(geo.box, mat.chrome, [w * 1.08, .25, d * 1.08], [x0, h, z0]);

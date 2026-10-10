@@ -73,12 +73,13 @@ for name in ["core", "builders", "game", "loop", "ui"]:
     src = src.replace("</script", "<\\/script")
     parts.append("/* ===== %s.js ===== */\n%s" % (name, src))
 game_js = "\n".join(parts)
+# The game code lives inside bootGame() so the jsDelivr fallback (index.html's loadFallback) can start it
+# after cdnjs failed; without a fallback success its onerror shows the failure message.
 inline = (
     "<script>window.SINGLE_FILE=true;" + share_js + audio_js + "</script>\n"
-    "<script>\nfunction bootGame(){}\n"
-    "if(!window.THREE){ fail('اللعبة مش قادرة تتحمّل. اتأكد إن النت شغال وجرّب تاني.'); }\n"
-    "</script>\n"
-    "<script>\nif(window.THREE){\n" + game_js + "\n}\n</script>"
+    "<script>\nfunction bootGame(){\nif(!window.THREE || window.__booted) return; window.__booted=true;\n"
+    + game_js +
+    "\n}\nif(window.THREE) bootGame();\n</script>"
 )
 i, j = between(html, "js")
 html = html[:i] + inline + html[j:]
