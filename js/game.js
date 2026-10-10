@@ -5,8 +5,15 @@
 /* ---------- persistent progress ---------- */
 var P = { best: 0, bestDaily: { d: '', s: 0 }, totalDist: 0, runs: 0, maxLevel: 1, skin: 0, streak: 0, lastDaily: '', mute: false, fx: true, seenMonster: false, tut: 0, won: false, lefty: false, scores: [] };
 var storageOk = true;
-(function () { try { var s = localStorage.getItem('mi_gams_v2'); if (s) { var o = JSON.parse(s); for (var k in o) if (o.hasOwnProperty(k)) P[k] = o[k]; } } catch (e) { storageOk = false; } })();
 function saveP() { try { localStorage.setItem('mi_gams_v2', JSON.stringify(P)); } catch (e) { storageOk = false; } }
+(function () {
+  try {
+    var s = localStorage.getItem('mi_gams_v2'); if (s) { var o = JSON.parse(s); for (var k in o) if (o.hasOwnProperty(k)) P[k] = o[k]; }
+    /* carry over the best score saved by the original game */
+    if (!P.best) { var old = parseInt(localStorage.getItem('mi_gams_best'), 10) || 0; if (old > 0) { P.best = old; saveP(); } }
+  } catch (e) { storageOk = false; }
+})();
+function plus(n) { return '⁦+' + n + '⁩'; } /* keeps "+N" left to right inside Arabic text */
 function todayKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 
 /* ---------- run state ---------- */
@@ -24,7 +31,7 @@ function timeGap(L) { return 1.15 - (Math.min(L, MAX_LEVEL) - 1) * .048; }
 function curGap() { return speedFor(level) * timeGap(level); }
 function levelStart(L) { return L <= MAX_LEVEL ? CUM[L - 1] : CUM[MAX_LEVEL] + (L - 11) * 500; }
 function levelEnd(L) { return L <= MAX_LEVEL ? CUM[L] : CUM[MAX_LEVEL] + (L - 10) * 500; }
-function spawnZ() { return -Math.max(110, speedFor(level) * 3.5); }
+function spawnZ() { return -Math.max(125, speedFor(level) * 3.5); }
 function score() { return Math.max(0, Math.floor(dist - baseDist)) + bonus; }
 var WTAB = { 1: [1, 0, 0], 2: [.85, .15, 0], 3: [.7, .3, 0], 4: [.55, .45, 0], 5: [.45, .55, 0], 6: [.35, .55, .1], 7: [.25, .5, .25], 8: [.2, .45, .35], 9: [.15, .4, .45], 10: [.1, .35, .55] };
 function pickWidth() { var t = WTAB[LC()], r = rnd(); return r < t[0] ? 1 : (r < t[0] + t[1] ? 2 : 3); }
@@ -66,12 +73,12 @@ function spawnRow(z) {
 }
 function prepopulate(startZ) { var gap = curGap(), z = startZ, last = startZ, sz = spawnZ(); while (z > sz) { spawnRow(z); last = z; z -= gap; } lastRowZ = last; }
 function spawnHeart(zAbs) {
-  var lane = randInt(1, LANES - 2), z = -(zAbs - dist);
+  var lane = 1 + Math.floor(rndH() * (LANES - 2)), z = -(zAbs - dist);
   for (var i = items.length - 1; i >= 0; i--) { var it = items[i]; if (it.kind === 'obs' && it.lane === lane && Math.abs(it.z - z) < 11) removeItem(it); }
   addItem('heart', lane, z, acquireHeart(), -1);
 }
 function nextHeartDist() {
-  var best = 1e9; for (var i = 0; i < items.length; i++) if (items[i].kind === 'heart') best = Math.min(best, -items[i].z);
+  var best = 1e9; for (var i = 0; i < items.length; i++) if (items[i].kind === 'heart' && items[i].z <= 0) best = Math.min(best, -items[i].z);
   if (best < 1e9) return Math.max(1, Math.ceil(best));
   var at = nextHeartK * HEART_EVERY; if (!endless && at > FINISH) return -1; return Math.max(1, Math.ceil(at - dist));
 }
@@ -136,7 +143,7 @@ function killMonster() {
   bonus += pts; kills++; trauma = Math.min(1, trauma + .8 * fxScale); exposureKick = .9; fovPunch = 5 * fxScale;
   sfx('explode', 1); buzz([20, 30, 60]);
   if (lives < MAX_LIVES) spawnHeart(dist + 30 + Math.max(0, -m.z - 30));
-  respawnT = st.respawn; renderBoss(); renderHUD(); popText('+' + pts + ' أسقطت الوحش', 'gold');
+  respawnT = st.respawn; renderBoss(); renderHUD(); popText(plus(pts) + ' أسقطت الوحش', 'gold');
 }
 function damageMonster(b) {
   var m = monster; m.hp--; m.flash = .14;
@@ -180,13 +187,14 @@ function updateCombat(dt) {
       var len = 6 - m.z, wm = warnMeshes[3]; wm.visible = true; wm.scale.set(LW * .92, .02, len); wm.position.set(m.x, .05, m.z + len / 2);
     } else warnMeshes[3].visible = false;
     warnMat.opacity = .25 + .3 * Math.abs(Math.sin(clock * 16));
-    if (state === 'playing' && Math.abs(px - m.x) < 1.3 && m.mode !== 'charge' && m.mode !== 'enter') fire(false);
+    if (state === 'playing' && Math.abs(px - m.x) < 1.0 * bs && m.mode !== 'charge' && m.mode !== 'enter') fire(false);
   }
   if (state !== 'playing') return;
+  var hb = camera.userData.bossScale;
   for (i = bullets.length - 1; i >= 0; i--) {
     var b = bullets[i]; b.pz = b.z; b.z -= 95 * dt; b.o.position.z = b.z;
     var gone = false;
-    if (monster && monster.mode !== 'enter') { var lo = Math.min(b.z, b.pz), hi = Math.max(b.z, b.pz); if (hi >= monster.z - 1.7 && lo <= monster.z + 1.7 && Math.abs(b.x - monster.x) < 1.5) { damageMonster(b); gone = true; } }
+    if (monster && monster.mode !== 'enter') { var lo = Math.min(b.z, b.pz), hi = Math.max(b.z, b.pz); if (hi >= monster.z - 1.3 * hb && lo <= monster.z + 1.3 * hb && Math.abs(b.x - monster.x) < 1.15 * hb) { damageMonster(b); gone = true; } }
     if (gone || b.z < -120) { release(bulletPool, b.o); bullets.splice(i, 1); }
   }
   for (i = fireballs.length - 1; i >= 0; i--) {
@@ -211,7 +219,7 @@ function move(dir) {
 function clutch() {
   chain++; chainT = 3; mult = chain >= 11 ? 5 : chain >= 7 ? 4 : chain >= 4 ? 3 : chain >= 2 ? 2 : 1; bestChain = Math.max(bestChain, chain);
   var pts = 25 * mult; bonus += pts; exposureKick = Math.max(exposureKick, .2);
-  popText('+' + pts + (mult > 1 ? ' ×' + mult : '') + ' بالمللي', mult >= 3 ? 'gold' : ''); beep(500 + 40 * Math.min(chain, 12), .08, 'triangle', .08);
+  popText(plus(pts) + (mult > 1 ? ' ×' + mult : '') + ' بالمللي', mult >= 3 ? 'gold' : ''); beep(500 + 40 * Math.min(chain, 12), .08, 'triangle', .08);
   burst(px, 1.2, 0, 0x9fe9ff, 8, 3, 3, 8);
 }
 function damage(x, why) {
@@ -224,8 +232,11 @@ function damage(x, why) {
 function die() {
   setState('dying'); dyingTimer = 1.25; if (!RM) { tsTarget = .25; slowT = .7; } grabNext = 7;
   sfx('gameover', 1); buzz(180); explodeRunner();
-  var sc = score(); saveRun(sc);
+  creditDist(); var sc = score(); saveRun(sc);
 }
+/* lifetime metres: credit what this run has added since the last credit, so deaths and quits count too */
+var creditedDist = 0;
+function creditDist() { var run = Math.max(0, Math.floor(dist - baseDist)), add = run - creditedDist; if (add > 0) { P.totalDist += add; creditedDist = run; saveP(); } }
 function explodeRunner() {
   var limbs = [player.head, player.legL.t, player.legR.t, player.armL.t, player.armR.t];
   root.updateMatrixWorld(true); restoreList.length = 0; debris.length = 0;
@@ -250,8 +261,8 @@ function updateDebris(dt) {
 function hit(it) { it.hit = true; removeItem(it); damage(it.x, OBS_NAMES[it.type]); }
 function pickHeart(it) {
   burst(it.x, 1.3, 0, 0xff5c8a, 36, 4, 5, 6); burst(it.x, 1.3, 0, 0xffd36a, 16, 3, 5, 6); removeItem(it); hearts++; exposureKick = Math.max(exposureKick, .35);
-  if (lives < MAX_LIVES) { lives++; renderHUD(); popHeart(lives - 1); sfx('heart', .9); buzz(15); popText('قلب +1', ''); }
-  else { bonus += 100; sfx('heart', .7); popText('+100 مكافأة', 'gold'); }
+  if (lives < MAX_LIVES) { lives++; renderHUD(); popHeart(lives - 1); sfx('heart', .9); buzz(15); popText('قلب ' + plus(1), ''); }
+  else { bonus += 100; sfx('heart', .7); popText(plus(100) + ' مكافأة', 'gold'); }
 }
 function reviveNow() {
   revived = true; lives = 2; invuln = 2.5; cause = ''; restoreRunner();
@@ -280,25 +291,31 @@ function startGame(opts) {
   restoreRunner(); clearAll(); clearCombat();
   level = opts.startLevel || 1; endless = false; dist = baseDist = levelStart(level); bonus = 0; lives = 3; targetLane = 4; aimLane = 4; px = laneX(4);
   invuln = 1.2; trauma = 0; nextHeartK = Math.floor(dist / HEART_EVERY) + 1; levelTimer = 0; revived = false; cause = ''; beaten = false; chalBeaten = false;
-  chain = 0; chainT = 0; mult = 1; bestChain = 0; kills = 0; hearts = 0; rescueCd = 0; timeScale = 1; tsTarget = 1; hitStop = 0; slowT = 0; shotURL = null; fxQueue.length = 0; runEntry = null;
+  chain = 0; chainT = 0; mult = 1; bestChain = 0; kills = 0; hearts = 0; rescueCd = 0; timeScale = 1; tsTarget = 1; hitStop = 0; slowT = 0; shotURL = null; fxQueue.length = 0; runEntry = null; creditedDist = 0; pauseGraceAt = -99;
+  unlockAudio();
   speedCur = speedFor(level) * .35; speed = speedCur; setPalette(level); applySkin(P.skin);
   prepopulate(-48); P.runs++; saveP(); renderHUD();
   if (P.tut < 2) $('tut').hidden = false;
   setState('playing'); music(true); sfx('levelup', .4); lockScreen();
 }
 function daysBetween(a, b) { var pa = a.split('-'), pb = b.split('-'); return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 864e5); }
+var pauseGraceAt = -99;
 function togglePause() {
   if (state === 'playing') setState('paused');
-  else if (state === 'paused') { setState('playing'); invuln = Math.max(invuln, 1.5); }
+  else if (state === 'paused') {
+    setState('playing');
+    /* a grace period after an interruption, once per 10 s of play so pause-spamming gains nothing; otherwise a short freeze */
+    if (gameClock - pauseGraceAt >= 10) { pauseGraceAt = gameClock; invuln = Math.max(invuln, 1.5); } else hitStop = Math.max(hitStop, .5);
+  }
 }
 function endLevel() {
   var L = LC(), pts = 100 * L; bonus += pts; sfx('levelup', .9); buzz([30, 40, 30]); exposureKick = .6;
   for (var i = 0; i < 6; i++) fxQueue.push({ t: .15 * i, x: (Math.random() - .5) * 12, y: 6 + Math.random() * 6, z: -25 - Math.random() * 25, c: [0xffc857, 0xffffff, palTo.accent][i % 3] });
-  P.totalDist += levelEnd(level) - levelStart(level); P.maxLevel = Math.max(P.maxLevel, level + 1); saveP();
+  creditDist(); P.maxLevel = Math.max(P.maxLevel, level + 1); saveP();
   if (level >= MAX_LEVEL && !endless) { clearObstacles(); clearCombat(); var sc = score(); P.won = true; saveRun(sc); showWin(sc); setState('win'); return; }
   var nl = level + 1, hint = { 3: 'من هنا الوحش هيظهر ومعاك زر النار', 6: 'الوحش بقى بيندفع ناحيتك، خلي بالك من الخط الأحمر', 8: 'الوحش بيضرب تلات كرات نار مرة واحدة' }[nl];
   if (hint) { clearObstacles(); clearCombat(); levelTimer = 2.2; showLevel(level, nl, pts, hint); setState('level'); }
-  else { nextLevel(); toast('المستوى ' + nl + ' | +' + pts, 1300); }
+  else { nextLevel(); toast('المستوى ' + nl + ' | ' + plus(pts), 1300); }
   renderHUD();
 }
 function nextLevel() {

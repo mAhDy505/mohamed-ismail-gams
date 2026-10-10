@@ -2,7 +2,7 @@
 'use strict';
 
 /* ---------- obstacle builders: static parts merged, moving parts separate ---------- */
-function slideCue(g) { var s = glowSprite(0xff4466, 2.6, .55); s.position.y = .25; s.visible = false; g.add(s); g.userData.cue = s; return g; }
+function slideCue(g) { var s = glowSprite(0xff4466, 2.6, .55, true); s.position.y = .25; s.visible = false; g.add(s); g.userData.cue = s; return g; }
 function buildSpikes() {
   var g = new T.Group(), b = new Builder();
   b.add(geo.box, mat.dark, [1.3, .3, 1.3], [0, .15, 0]);
@@ -34,7 +34,7 @@ function buildSaw() {
   sb.add(geo.tor, mat.gRed, [.52, .52, .52], [0, 0, .08]);
   sb.add(geo.sph, mat.gRed, [.17, .17, .17], [0, 0, .1]);
   sb.finish(sp, true);
-  var gl = glowSprite(0xff4466, 1.4, .5); gl.position.set(0, 1.2, .2); g.add(gl);
+  var gl = glowSprite(0xff4466, 1.4, .5, true); gl.position.set(0, 1.2, .2); g.add(gl);
   g.userData.tick = function (t, dt) { sp.rotation.z -= dt * 10; };
   return slideCue(g);
 }
@@ -46,7 +46,7 @@ function buildPylon() {
   b.add(geo.tor, mat.gold, [.5, .5, .5], [0, 2.7, 0], [Math.PI / 2, 0, 0]);
   b.finish(g, true);
   var cr = add(g, geo.oct, mat.gViolet, [.34, .5, .34], [0, 3.05, 0]);
-  var gl = glowSprite(0xb18cff, 1.8, .6); gl.position.y = 3.05; g.add(gl);
+  var gl = glowSprite(0xb18cff, 1.8, .6, true); gl.position.y = 3.05; g.add(gl);
   g.userData.tick = function (t, dt) { cr.rotation.y += dt * 3; cr.position.y = 3.05 + Math.sin(t * 3) * .08; };
   return slideCue(g);
 }
@@ -57,7 +57,7 @@ function buildGimbal() {
   b.finish(g, true);
   var c = new T.Group(); c.position.set(0, 1.55, 0); g.add(c);
   var core = add(c, geo.sph, mat.gOrange, [.26, .26, .26], [0, 0, 0]);
-  var gl = glowSprite(0xff8a3d, 1.6, .6); c.add(gl);
+  var gl = glowSprite(0xff8a3d, 1.6, .6, true); c.add(gl);
   var r1 = add(c, geo.torT, mat.gold, [.72, .72, .72], [0, 0, 0], true);
   var r2 = add(c, geo.torT, mat.copper, [.58, .58, .58], [0, 0, 0], true);
   var r3 = add(c, geo.torT, mat.chrome, [.45, .45, .45], [0, 0, 0], true);
@@ -98,7 +98,7 @@ function buildHeart() {
   var halo = new T.Mesh(geo.tor, mat.gGold); halo.scale.setScalar(.95); pv.add(halo);
   var halo2 = new T.Mesh(geo.tor, mat.gCyan); halo2.scale.setScalar(.82); halo2.rotation.x = Math.PI / 2; pv.add(halo2);
   pv.position.y = 1.2;
-  var gl = glowSprite(0xff5c8a, 3.2, .55); gl.position.y = 1.2; g.add(gl);
+  var gl = glowSprite(0xff5c8a, 3.2, .55, true); gl.position.y = 1.2; g.add(gl);
   var beam = new T.Mesh(beamGeo, new T.MeshBasicMaterial({ map: beamTex, color: 0xff5c8a, transparent: true, opacity: .32, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false, toneMapped: false }));
   beam.position.y = 20; g.add(beam);
   g.userData.tick = function (t, dt) { pv.rotation.y += dt * 2.4; pv.position.y = 1.2 + Math.sin(t * 3) * .14; halo2.rotation.z += dt * 2; gl.material.opacity = .45 + .2 * Math.sin(t * 6); };
@@ -296,7 +296,7 @@ var skinMats = { steel: mat.steel.clone(), gold: mat.gold.clone(), cyan: mat.gCy
   }
   player.legL = leg(-.2); player.legR = leg(.2); player.armL = arm(-.45); player.armR = arm(.45);
   root.scale.setScalar(.95);
-  player.shadow = blobShadow(1.6); root.add(player.shadow);
+  player.shadow = blobShadow(1.6); scene.add(player.shadow); /* in the scene, not under the leaning root, so it stays flat on the floor */
   var bub = new T.Mesh(new T.SphereGeometry(1.5, 16, 12), new T.MeshBasicMaterial({ color: 0x3be3ff, transparent: true, opacity: .16, blending: T.AdditiveBlending, depthWrite: false, side: T.BackSide, toneMapped: false, fog: false }));
   bub.position.y = 1.2; bub.visible = false; root.add(bub); player.bubble = bub;
   var ring = new T.Mesh(geo.tor, mat.gCyan); ring.scale.setScalar(.75); ring.position.y = -.1; ring.rotation.x = Math.PI / 2; bub.add(ring); player.bubbleRing = ring;

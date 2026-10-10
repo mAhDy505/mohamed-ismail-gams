@@ -80,7 +80,7 @@
     <button class="cta" id="bResume" type="button">كمّل</button>
     <div class="btnrow">
       <button class="ghost" id="bSound2" type="button"></button>
-      <button class="ghost" id="bLefty" type="button">بدّل إيد الأزرار</button>
+      <button class="ghost" id="bLefty" type="button">زر النار على الشمال</button>
       <button class="ghost" id="bRestart" type="button">ابدأ من الأول</button>
       <button class="ghost" id="bHome" type="button">القائمة</button>
     </div>
@@ -171,13 +171,13 @@
 <script>
 function fail(msg){ var b=document.getElementById('startBtn'); if(b) b.hidden=true; var p=document.getElementById('pMenu');
   if(p && !document.getElementById('failMsg')) p.insertAdjacentHTML('beforeend','<p class="msg" id="failMsg">'+msg+'</p><button class="cta sm" type="button" onclick="location.reload()">حاول تاني</button>'); }
-function loadFallback(){ var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js'; s.onload=bootGame; s.onerror=function(){ fail('اللعبة مش قادرة تتحمّل. اتأكد إن النت شغال وجرّب تاني.'); }; document.head.appendChild(s); }
+function loadFallback(){ var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js'; s.onload=function(){ if(window.bootGame) bootGame(); }; s.onerror=function(){ fail('اللعبة مش قادرة تتحمّل. اتأكد إن النت شغال وجرّب تاني.'); }; document.head.appendChild(s); }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous" onerror="loadFallback()"></script>
 <!-- build:js -->
 <script>
 var GAME_SCRIPTS=['js/core.js','js/builders.js','js/game.js','js/loop.js','js/ui.js'];
-function bootGame(){ if(!window.THREE){ return; } var i=0;
+function bootGame(){ if(!window.THREE || window.__booted){ return; } window.__booted=true; var i=0;
   (function next(){ if(i>=GAME_SCRIPTS.length) return; if(i>0 && !window.__gameOk) return; var s=document.createElement('script'); s.src=GAME_SCRIPTS[i++]; s.onload=next; s.onerror=function(){ fail('حصلت مشكلة في تحميل اللعبة. جرّب تاني.'); }; document.body.appendChild(s); })(); }
 if(window.THREE) bootGame();
 </script>
