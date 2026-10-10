@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>MOHAMED ISMAIL GAMS</title>
+<meta name="description" content="لعبة جري ثلاثية الأبعاد في المتصفح: اتفادى الحواجز، لمّ القلوب، واهزم الوحش. هتوصل لمستوى كام؟">
+<meta name="theme-color" content="#05070d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MI GAMS">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mahdy505.github.io/mohamed-ismail-gams/">
+<meta property="og:site_name" content="MOHAMED ISMAIL GAMS">
+<meta property="og:title" content="MOHAMED ISMAIL GAMS | تقدر تعدّيني؟">
+<meta property="og:description" content="لعبة جري ثلاثية الأبعاد: اتفادى الحواجز، لمّ القلوب، واهزم الوحش. العب من المتصفح على طول.">
+<meta property="og:image" content="https://mahdy505.github.io/mohamed-ismail-gams/icons/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<!-- build:pwa -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<!-- endbuild -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&family=Orbitron:wght@700;900&display=swap" media="print" onload="this.media='all'">
+<style>[hidden]{display:none!important}</style>
+<!-- build:css -->
+<link rel="stylesheet" href="css/game.css">
+<!-- endbuild -->
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+  <div id="grain"></div>
+  <div id="vig"></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9db2"/><stop offset=".55" stop-color="#e0214a"/><stop offset="1" stop-color="#8d0f2c"/></linearGradient>
+  </defs></svg>
+
+  <div id="hud" hidden>
+    <div class="row" style="direction:ltr">
+      <div class="lives" id="lives" role="img" aria-label="الأرواح"></div>
+      <div class="topbtns">
+        <button class="iconbtn" id="bSound" type="button" aria-label="الصوت"></button>
+        <button class="iconbtn" id="bPause" type="button" aria-label="وقّف"></button>
+      </div>
+      <div class="score"><span class="lbl">النقاط</span><b id="score">0</b><span class="lbl" id="bestHud"></span>
+        <div id="combo"><span id="comboN">×2</span><i><b id="comboBar"></b></i></div>
+      </div>
+    </div>
+    <div class="row sub">
+      <span>المستوى <b id="lvl">1</b></span>
+      <div class="bar"><i id="bar"></i></div>
+      <span id="heartTxt"></span>
+    </div>
+    <div class="row sub" id="boss" hidden>
+      <span class="bossl">الوحش</span>
+      <div class="bar"><i id="bossBar"></i></div>
+    </div>
+  </div>
+
+  <div id="flash"></div>
+  <div id="pops"></div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <div id="tut" hidden>
+    <div class="arrows">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <p>اسحب يمين وشمال أو دوس على الأسهم</p>
+  </div>
+  <div id="pauseTag" class="panel" role="status" hidden>
+    <p class="sub1">اللعبة واقفة</p>
+    <button class="cta" id="bResume" type="button">كمّل</button>
+    <div class="btnrow">
+      <button class="ghost" id="bSound2" type="button"></button>
+      <button class="ghost" id="bLefty" type="button">بدّل إيد الأزرار</button>
+      <button class="ghost" id="bRestart" type="button">ابدأ من الأول</button>
+      <button class="ghost" id="bHome" type="button">القائمة</button>
+    </div>
+  </div>
+
+  <div id="pad" hidden>
+    <button class="key dir" id="bLeft" aria-label="يسار" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5l-7 7 7 7"/></svg></button>
+    <button class="key fire" id="bFire" aria-label="إطلاق النار" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>
+    </button>
+    <button class="key dir" id="bRight" aria-label="يمين" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5l7 7-7 7"/></svg></button>
+  </div>
+
+  <section class="panel menu" id="pMenu">
+    <h1 class="title"><span>MOHAMED</span><span>ISMAIL</span><span>GAMS</span></h1>
+    <div class="hero" aria-hidden="true"></div>
+    <p class="hint" id="chalTxt" hidden></p>
+    <div class="modes">
+      <button class="ghost on" id="bCampaign" type="button">الحملة</button>
+      <button class="ghost" id="bDaily" type="button">سباق اليوم</button>
+    </div>
+    <p class="streak" id="streakTxt"></p>
+    <div class="modes" id="cpRow" hidden>
+      <button class="ghost on" id="cp1" type="button">من المستوى 1</button>
+      <button class="ghost" id="cp4" type="button">من المستوى 4</button>
+      <button class="ghost" id="cp7" type="button" hidden>من المستوى 7</button>
+    </div>
+    <button class="cta" id="startBtn" type="button">يلا نلعب</button>
+    <p class="hint" id="bestMenu"></p>
+    <div class="card">
+      <h3>شكل اللاعب</h3>
+      <div class="skins" id="skins"></div>
+      <p class="hint" id="skinName" style="margin-top:8px;font-size:.8rem"></p>
+    </div>
+    <div class="card">
+      <h3>أحسن نتائجك</h3>
+      <ol class="lb" id="lb"></ol>
+    </div>
+    <button class="ghost" id="installBtn" type="button" hidden>ثبّت اللعبة على الموبايل</button>
+  </section>
+
+  <section class="panel" id="pLevel" hidden>
+    <h2 class="big">عاش!</h2>
+    <p class="sub1">خلّصت المستوى <span class="num" id="lvDone">1</span> من 10</p>
+    <p class="sub2" id="lvBonus"></p>
+    <p class="sub2" id="lvHint" style="color:var(--gold)"></p>
+    <p class="sub2">المستوى <span class="num" id="lvNext">2</span> بيبدأ بعد <span class="num" id="lvCount">3</span> ثواني</p>
+    <button class="cta sm" id="nextBtn" type="button">كمّل دلوقتي</button>
+  </section>
+
+  <section class="panel" id="pRevive" hidden>
+    <p class="sub1">فرصة تانية؟</p>
+    <div class="ring"><svg viewBox="0 0 88 88"><circle class="bgc" cx="44" cy="44" r="39"/><circle class="fgc" id="ringFg" cx="44" cy="44" r="39"/></svg><b id="reviveNum">4</b></div>
+    <button class="cta" id="reviveBtn" type="button">كمّل بقلبين</button>
+    <button class="ghost" id="reviveNo" type="button">خلاص كفاية</button>
+  </section>
+
+  <section class="panel" id="pOver" hidden>
+    <p class="sub2" id="modeOver"></p>
+    <p class="final" id="finalScore">0</p>
+    <p class="newbest" id="newBest" hidden>رقم قياسي جديد</p>
+    <p class="sorry" id="sorryTxt"></p>
+    <p class="sub1" id="rankTxt"></p>
+    <div class="stats" id="overStats"></div>
+    <p class="sub2" id="bestOver"></p>
+    <div class="btnrow">
+      <button class="cta" id="againBtn" type="button">العب تاني</button>
+      <button class="ghost" id="shareBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>تحدّى صحابك</button>
+      <button class="ghost" id="homeBtn" type="button">القائمة</button>
+    </div>
+  </section>
+
+  <section class="panel" id="pWin" hidden>
+    <h2 class="big">أسطورة</h2>
+    <p class="sub1">خلّصت العشر مستويات كلها</p>
+    <p class="final" id="winScore">0</p>
+    <p class="sub1" id="rankWin"></p>
+    <p class="sub2" id="bestWin"></p>
+    <div class="btnrow">
+      <button class="cta" id="endlessBtn" type="button">كمّل بلا نهاية</button>
+      <button class="ghost" id="shareBtn2" type="button">تحدّى صحابك</button>
+      <button class="ghost" id="againBtn2" type="button">العب من الأول</button>
+      <button class="ghost" id="homeBtn2" type="button">القائمة</button>
+    </div>
+  </section>
+</div>
+
+<script>
+function fail(msg){ var b=document.getElementById('startBtn'); if(b) b.hidden=true; var p=document.getElementById('pMenu');
+  if(p && !document.getElementById('failMsg')) p.insertAdjacentHTML('beforeend','<p class="msg" id="failMsg">'+msg+'</p><button class="cta sm" type="button" onclick="location.reload()">حاول تاني</button>'); }
+function loadFallback(){ var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js'; s.onload=bootGame; s.onerror=function(){ fail('اللعبة مش قادرة تتحمّل. اتأكد إن النت شغال وجرّب تاني.'); }; document.head.appendChild(s); }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous" onerror="loadFallback()"></script>
+<!-- build:js -->
+<script>
+var GAME_SCRIPTS=['js/core.js','js/builders.js','js/game.js','js/loop.js','js/ui.js'];
+function bootGame(){ if(!window.THREE){ return; } var i=0;
+  (function next(){ if(i>=GAME_SCRIPTS.length) return; if(i>0 && !window.__gameOk) return; var s=document.createElement('script'); s.src=GAME_SCRIPTS[i++]; s.onload=next; s.onerror=function(){ fail('حصلت مشكلة في تحميل اللعبة. جرّب تاني.'); }; document.body.appendChild(s); })(); }
+if(window.THREE) bootGame();
+</script>
+<!-- endbuild -->
+</body>
+</html>

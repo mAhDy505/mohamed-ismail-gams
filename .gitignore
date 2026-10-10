@@ -1,0 +1,5 @@
+assets/audio/raw/
+.claude/
+__pycache__/
+*.pyc
+Thumbs.db
